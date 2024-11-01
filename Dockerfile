@@ -1,29 +1,33 @@
-FROM ubuntu
+# Use the official Ubuntu image as the base
+FROM ubuntu:20.04
 
-RUN apt-get update
-RUN apt-get install wget -y
-RUN apt-get install libcurl4 -y
+# Set noninteractive mode for installation
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN mkdir -p mongodb/bin
+# Set environment variables for MongoDB version
+ENV MONGO_VERSION=7.0
 
-COPY ./entrypoint.sh /mongodb
+# Update packages and install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x /mongodb/entrypoint.sh
+# Add MongoDB GPG key
+RUN wget -qO - https://www.mongodb.org/static/pgp/server-$MONGO_VERSION.asc | apt-key add -
 
-WORKDIR /mongodb/bin
+# Add MongoDB repository
+RUN echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/$MONGO_VERSION multiverse" | tee /etc/apt/sources.list.d/mongodb-org-$MONGO_VERSION.list
 
-RUN wget -O mongodb.tgz https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.0.tgz
+# Install MongoDB and the mongo shell
+RUN apt-get update && apt-get install -y mongodb-org && rm -rf /var/lib/apt/lists/*
 
-RUN wget -O mongosh.tgz https://downloads.mongodb.com/compass/mongosh-1.10.6-linux-x64.tgz
+# Create the data directory
+RUN mkdir -p /data/db && chown -R mongodb:mongodb /data/db
 
-RUN tar -xvf mongodb.tgz && mv mongodb-linux-x86_64-ubuntu2204-7.0.0 mongodb
+# Copy entrypoint script into the image
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-RUN tar -xvf mongosh.tgz && mv mongosh-1.10.6-linux-x64 mongosh
-
-WORKDIR /mongodb
-
-RUN mkdir -p node1/data node1/log
-RUN mkdir -p node2/data node2/log
-RUN mkdir -p node3/data node3/log
-
-CMD ["bash", "entrypoint.sh"]
+# Set the entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
